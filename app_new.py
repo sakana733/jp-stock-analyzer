@@ -75,6 +75,7 @@ def safe_number(value):
 
 def get_financials(symbol):
     info = yf.Ticker(symbol).get_info()
+    st.write("財務データの取得状況：", len(info), "項目")
     return {
         "時価総額": safe_number(info.get("marketCap")),
         "PER": safe_number(info.get("trailingPE")),
