@@ -5,6 +5,8 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import requests
+import re
+import html
 
 st.set_page_config(page_title="日本株分析・拡張版", layout="wide")
 st.title("日本株分析アプリ・機能拡張版")
@@ -73,23 +75,46 @@ def safe_number(value):
     except (TypeError, ValueError):
         return np.nan
 
+def get_yahoo_japan_ratios(symbol):
+    """Yahoo!ファイナンス日本版の掲載値を取得。取得失敗時は欠損値を返す。"""
+    result = {"ROE": np.nan, "自己資本比率": np.nan}
+    try:
+        url = f"https://finance.yahoo.co.jp/quote/{symbol}"
+        response = requests.get(
+            url, headers={"User-Agent": "Mozilla/5.0"}, timeout=15
+        )
+        response.raise_for_status()
+        # ページ内の埋め込みJSONは引用符がエスケープされている場合がある。
+        page = html.unescape(response.text)
+        for key, label in (("roe", "ROE"), ("equityRatio", "自己資本比率")):
+            # 対象のキーに続くオブジェクトからvalueを取得し、別の項目との誤対応を防ぐ。
+            pattern = (
+                r'["\\]*' + re.escape(key) +
+                r'["\\]*\s*:\s*\{.{0,400}?["\\]*value["\\]*\s*:\s*'
+                r'["\\]*(-?\d+(?:\.\d+)?)["\\]*'
+            )
+            match = re.search(pattern, page, flags=re.DOTALL)
+            if match:
+                result[label] = float(match.group(1)) / 100.0
+    except (requests.RequestException, ValueError):
+        pass
+    return result
+
+
 def get_financials(symbol):
    
     ticker = yf.Ticker(symbol)
     info = ticker.info
     st.write("財務データの取得状況：", len(info), "項目")
+    jp_ratios = get_yahoo_japan_ratios(symbol)
     return {
         "時価総額": safe_number(info.get("marketCap")),
         "PER": safe_number(info.get("trailingPE")),
         "PBR": safe_number(info.get("priceToBook")),
-        "ROE": safe_number(info.get("returnOnEquity")),
+        "ROE": (jp_ratios["ROE"] if np.isfinite(jp_ratios["ROE"])
+                else safe_number(info.get("returnOnEquity"))),
         "営業利益率": safe_number(info.get("operatingMargins")),
-        "自己資本比率": (
-            safe_number(info.get("totalStockholderEquity")) /
-            safe_number(info.get("totalAssets"))
-            if safe_number(info.get("totalAssets")) > 0
-            else np.nan
-        ),
+        "自己資本比率": jp_ratios["自己資本比率"],
         "売上高": safe_number(info.get("totalRevenue")),
         "純利益": safe_number(info.get("netIncomeToCommon")),
     }
@@ -286,7 +311,7 @@ if run:
                 display = f"{value:,.0f}"
             rows.append({"項目": name, "値": display})
         st.dataframe(pd.DataFrame(rows), hide_index=True)
-        st.caption("出典：Yahoo Finance / yfinance。取得時点の情報です。")
+        st.caption("出典：Yahoo!ファイナンス日本版（ROE・自己資本比率の取得成功時）、Yahoo Finance / yfinance（その他）。取得時点の情報です。Yahoo日本版から取得できない場合、ROEはyfinanceの値、自己資本比率は未取得となります。")
     except Exception as e:
         st.warning(f"財務情報を取得できませんでした: {e}")
 
