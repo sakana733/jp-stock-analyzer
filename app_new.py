@@ -200,8 +200,11 @@ def backtest(df, holding_days, cost_bps):
     return pd.DataFrame(trades)
 
 if run:
-    if not (len(code) == 4 and code.isdigit()):
-        st.error("証券コードは4桁の数字で入力してください。")
+   
+    code = code.upper()
+
+    if not (len(code) == 4 and code.isalnum() and code[:3].isdigit()):
+        st.error("証券コードは7203や285Aの形式で入力してください。")
         st.stop()
 
     symbol = code + ".T"
@@ -232,6 +235,37 @@ if run:
         ))
     fig.update_layout(height=450, xaxis_title="日付", yaxis_title="円")
     st.plotly_chart(fig, use_container_width=True)
+
+    # MACDとシグナル線のグラフ
+    st.subheader("MACD（12・26・9）")
+    macd_fig = go.Figure()
+
+    macd_fig.add_trace(go.Scatter(
+        x=df.index,
+        y=df["MACD"],
+        name="MACD"
+    ))
+
+    macd_fig.add_trace(go.Scatter(
+        x=df.index,
+        y=df["Signal"],
+        name="シグナル線"
+    ))
+
+    macd_fig.add_trace(go.Bar(
+        x=df.index,
+        y=df["MACD"] - df["Signal"],
+        name="ヒストグラム"
+    ))
+
+    macd_fig.add_hline(y=0, line_dash="dash")
+    macd_fig.update_layout(
+        height=300,
+        xaxis_title="日付",
+        yaxis_title="MACD"
+    )
+
+    st.plotly_chart(macd_fig, use_container_width=True)
 
     st.subheader("2. 財務情報")
     fin = {}
