@@ -74,7 +74,9 @@ def safe_number(value):
         return np.nan
 
 def get_financials(symbol):
-    info = yf.Ticker(symbol).get_info()
+   
+    ticker = yf.Ticker(symbol)
+    info = ticker.info
     st.write("財務データの取得状況：", len(info), "項目")
     return {
         "時価総額": safe_number(info.get("marketCap")),
