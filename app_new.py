@@ -249,7 +249,16 @@ if run:
 
     st.subheader("1. 株価とテクニカル指標")
     c1, c2, c3 = st.columns(3)
-    c1.metric("終値", f"{latest['Close']:,.1f} 円")
+    # 前営業日の終値を基準に前日比を算出（休場日は直近の取引日を使用）
+    current_close = float(df["Close"].iloc[-1])
+    previous_close = float(df["Close"].iloc[-2])
+    price_change = current_close - previous_close
+    price_change_pct = price_change / previous_close * 100 if previous_close != 0 else np.nan
+    if np.isfinite(price_change_pct):
+        delta_text = f"{price_change:+,.1f} 円 ({price_change_pct:+.2f}%)"
+    else:
+        delta_text = f"{price_change:+,.1f} 円"
+    c1.metric("終値", f"{current_close:,.1f} 円", delta=delta_text)
     c2.metric("RSI", f"{latest['RSI']:.1f}")
     c3.metric("テクニカル評価", f"{technical_score(latest):.1f} / 10")
 
