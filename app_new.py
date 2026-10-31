@@ -101,6 +101,42 @@ def get_yahoo_japan_ratios(symbol):
     return result
 
 
+def get_company_name(symbol):
+    """銘柄名を取得。取得できない場合は証券コードを表示する。"""
+    # 日本語の銘柄名が取得できる場合はYahoo!ファイナンス日本版を優先。
+    try:
+        response = requests.get(
+            f"https://finance.yahoo.co.jp/quote/{symbol}",
+            headers={"User-Agent": "Mozilla/5.0"}, timeout=10
+        )
+        response.raise_for_status()
+        match = re.search(
+            r'<meta\s+[^>]*property=["\']og:title["\'][^>]*content=["\']([^"\']+)',
+            response.text, re.IGNORECASE
+        )
+        if not match:
+            match = re.search(
+                r'<meta\s+[^>]*content=["\']([^"\']+)["\'][^>]*property=["\']og:title["\']',
+                response.text, re.IGNORECASE
+            )
+        if match:
+            title = html.unescape(match.group(1)).strip()
+            # サイト名や証券コードなどの付記を取り除く。
+            name = re.split(r'（\d{4}[A-Z]?）|【| - |｜|\|', title, maxsplit=1)[0].strip()
+            if name and name != symbol:
+                return name
+    except (requests.RequestException, ValueError):
+        pass
+    try:
+        info = yf.Ticker(symbol).info
+        name = info.get("longName") or info.get("shortName")
+        if isinstance(name, str) and name.strip():
+            return name.strip()
+    except Exception:
+        pass
+    return symbol
+
+
 def get_financials(symbol):
    
     ticker = yf.Ticker(symbol)
@@ -248,6 +284,8 @@ if run:
     st.success(f"{symbol} の株価分析が完了しました。")
 
     st.subheader("1. 株価とテクニカル指標")
+    company_name = get_company_name(symbol)
+    st.markdown(f"### {company_name}（{code}）")
     c1, c2, c3 = st.columns(3)
     # 前営業日の終値を基準に前日比を算出（休場日は直近の取引日を使用）
     current_close = float(df["Close"].iloc[-1])
